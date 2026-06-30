@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>CGR | Análisis de Personal y Costo de Planta 2025</title>
+<!-- SheetJS (build completa que soporta .xlsb) -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<!-- Chart.js para los gráficos -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --cgr-azul:#0b2545;
+    --cgr-azul2:#13315c;
+    --cgr-dorado:#c9a227;
+    --cgr-gris:#f4f6fa;
+    --cgr-borde:#d9dde6;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",Arial,sans-serif;background:var(--cgr-gris);color:#1b1b1b}
+  header{
+    background:linear-gradient(90deg,var(--cgr-azul),var(--cgr-azul2));
+    color:#fff;padding:18px 28px;border-bottom:4px solid var(--cgr-dorado);
+  }
+  header h1{margin:0;font-size:20px;letter-spacing:.3px}
+  header small{opacity:.85}
+  main{padding:22px 28px;max-width:1280px;margin:0 auto}
+  section.card{
+    background:#fff;border:1px solid var(--cgr-borde);border-radius:10px;
+    padding:18px 20px;margin-bottom:18px;box-shadow:0 1px 2px rgba(0,0,0,.04);
+  }
+  section.card h2{
+    margin:0 0 12px 0;font-size:16px;color:var(--cgr-azul);
+    border-left:4px solid var(--cgr-dorado);padding-left:10px;
+  }
+  .row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+  .row > div{display:flex;flex-direction:column;gap:4px}
+  label{font-size:12px;color:#444;font-weight:600}
+  input[type="file"],select,input[type="number"]{
+    padding:7px 9px;border:1px solid var(--cgr-borde);border-radius:6px;
+    background:#fff;font-size:13px;min-width:180px;
+  }
+  select[multiple]{min-height:160px;min-width:280px}
+  button{
+    background:var(--cgr-azul);color:#fff;border:none;border-radius:6px;
+    padding:9px 14px;font-size:13px;cursor:pointer;font-weight:600;
+  }
+  button:hover{background:var(--cgr-azul2)}
+  button.secondary{background:var(--cgr-dorado);color:#1b1b1b}
+  button.secondary:hover{background:#b08c1d;color:#fff}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .stats{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+  .stat{
+    background:var(--cgr-gris);border:1px solid var(--cgr-borde);
+    padding:10px 14px;border-radius:8px;min-width:160px;
+  }
+  .stat b{display:block;font-size:18px;color:var(--cgr-azul)}
+  .stat span{font-size:12px;color:#555}
+  .table-wrap{max-height:380px;overflow:auto;border:1px solid var(--cgr-borde);border-radius:6px}
+  table{border-collapse:collapse;width:100%;font-size:12.5px}
+  th,td{padding:6px 8px;border-bottom:1px solid #eef0f4;text-align:left;white-space:nowrap}
+  th{background:var(--cgr-azul);color:#fff;position:sticky;top:0}
+  tr:nth-child(even) td{background:#fafbfd}
+  #loading{
+    display:none;position:fixed;inset:0;background:rgba(11,37,69,.45);
+    align-items:center;justify-content:center;z-index:99;color:#fff;font-weight:600;
+  }
+  #loading.show{display:flex}
+  .spinner{
+    width:42px;height:42px;border:4px solid #fff;border-top-color:var(--cgr-dorado);
+    border-radius:50%;animation:spin 1s linear infinite;margin-right:14px;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .pasos{color:#555;font-size:13px;line-height:1.5}
+  .pasos b{color:var(--cgr-azul)}
+  #chartBox{margin-top:14px;background:#fff;border:1px solid var(--cgr-borde);border-radius:6px;padding:10px}
+  #combosMsg{font-size:13px;color:#13315c;margin-top:6px}
+  .pill{display:inline-block;background:var(--cgr-dorado);color:#1b1b1b;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Contraloría General de la República — Análisis de Personal y Costo de Planta 2025</h1>
+  <small>Versión web (JavaScript) del cuaderno de análisis · Ejecutable directamente en el navegador</small>
+</header>
+
+<main>
+
+  <!-- PASO 1 y 2: Cargar el archivo y unir hojas -->
+  <section class="card">
+    <h2>Paso 1 y 2 · Cargar el archivo .xlsb y unir las hojas</h2>
+    <p class="pasos">
+      Selecciona el archivo <b>Personal y Costo Planta 2025 (.xlsb)</b>. El navegador leerá
+      la hoja <b>CGR_PERSONAL_Y_COSTOS</b> y la hoja <b>Entidades</b>, y las unirá usando
+      <b>CODENTIDAD = BK_CHIP</b> (equivalente a un BUSCARV en Excel) para incorporar
+      <span class="pill">DS_ENTIDAD</span> <span class="pill">DS_DEPARTAMENTO</span>
+      <span class="pill">DS_CIUDAD</span> <span class="pill">DS_AMBITO_NOMBRE_CGR_CHIP</span>.
+    </p>
+    <div class="row">
+      <div>
+        <label for="fileInput">Archivo .xlsb</label>
+        <input type="file" id="fileInput" accept=".xlsb,.xlsx,.xls">
+      </div>
+    </div>
+    <div class="stats" id="stats" style="display:none">
+      <div class="stat"><b id="stFilas">0</b><span>Filas totales</span></div>
+      <div class="stat"><b id="stCols">0</b><span>Columnas totales</span></div>
+      <div class="stat"><b id="stSinEnt">0</b><span>Registros sin DS_ENTIDAD</span></div>
+    </div>
+  </section>
+
+  <!-- PASO 3: Ver columnas disponibles -->
+  <section class="card" id="cardColumnas" style="display:none">
+    <h2>Paso 3 · Columnas disponibles</h2>
+    <p class="pasos">Estas son las columnas que puedes usar para agrupar o como métrica numérica.</p>
+    <div class="table-wrap">
+      <table id="tblColumnas">
+        <thead><tr><th>#</th><th>Columna</th><th>Tipo</th><th>Valores distintos</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- PASO 4 y 5: Consultas -->
+  <section class="card" id="cardConsulta" style="display:none">
+    <h2>Paso 4 y 5 · Hacer preguntas a los datos</h2>
+    <p class="pasos">
+      Elige <b>de 1 a 5 columnas</b> para agrupar y una <b>métrica</b> (contar registros o sumar una columna numérica).
+      Pulsa <b>Ver combinaciones</b> para estimar el tamaño del resultado antes de ejecutar.
+    </p>
+    <div class="row">
+      <div>
+        <label for="groupCols">Columnas para agrupar (máx. 5) — Ctrl/Cmd+clic</label>
+        <select id="groupCols" multiple size="10"></select>
+      </div>
+      <div>
+        <label for="metrica">Métrica</label>
+        <select id="metrica"></select>
+      </div>
+      <div>
+        <label for="topN">Top N en gráfico</label>
+        <input type="number" id="topN" value="20" min="1" max="200">
+      </div>
+      <div>
+        <button id="btnCombos" class="secondary">Ver combinaciones</button>
+      </div>
+      <div>
+        <button id="btnConsulta">Ejecutar consulta</button>
+      </div>
+      <div>
+        <button id="btnDescargar" disabled>Descargar Excel</button>
+      </div>
+    </div>
+    <div id="combosMsg"></div>
+
+    <h3 style="margin-top:18px;color:var(--cgr-azul);font-size:14px">Resultado (primeras 30 filas)</h3>
+    <div class="table-wrap" id="resultBox">
+      <table id="tblResultado"><thead></thead><tbody></tbody></table>
+    </div>
+
+    <div id="chartBox" style="display:none">
+      <canvas id="chartCanvas" height="120"></canvas>
+    </div>
+  </section>
+
+  <!-- PASO 6 -->
+  <section class="card">
+    <h2>Paso 6 · Descargar resultados</h2>
+    <p class="pasos">
+      Cada consulta ejecutada se puede descargar como <b>.xlsx</b> con el botón
+      <b>Descargar Excel</b>. El nombre se genera automáticamente a partir de las
+      columnas agrupadas.
+    </p>
+  </section>
+
+</main>
+
+<div id="loading"><div class="spinner"></div><span id="loadingMsg">Procesando…</span></div>
+
+<script>
+/* =========================================================================
+   CGR · Análisis de Personal y Costo de Planta 2025
+   Versión JavaScript del notebook de Python (Pandas + Matplotlib).
+   Toda la lógica se ejecuta 100% en el navegador con SheetJS y Chart.js.
+   ========================================================================= */
+
+// Estado global
+let dfCompleto = [];        // arreglo de objetos (cada fila = un registro)
+let columnas = [];          // nombres de todas las columnas
+let infoColumnas = {};      // {col: {tipo:"num"|"cat", unicos:N}}
+let ultimoResultado = null; // último resultado de consulta (para descargar)
+let ultimoNombre = "consulta";
+let chartActual = null;
+
+// Utilidades de UI
+const $ = (id) => document.getElementById(id);
+const showLoading = (msg) => { $("loadingMsg").textContent = msg || "Procesando…"; $("loading").classList.add("show"); };
+const hideLoading = () => $("loading").classList.remove("show");
+
+// -------------------------------------------------------------------------
+// PASO 2: Leer el archivo .xlsb y unir las dos hojas
+// -------------------------------------------------------------------------
+$("fileInput").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  showLoading("Leyendo archivo .xlsb…");
+  try {
+    const buf = await file.arrayBuffer();
+    // SheetJS soporta .xlsb cuando se usa la build completa (xlsx.full.min.js)
+    const wb = XLSX.read(buf, { type: "array" });
+
+    const hojaPersonal = "CGR_PERSONAL_Y_COSTOS";
+    const hojaEntidades = "Entidades";
+    if (!wb.Sheets[hojaPersonal] || !wb.Sheets[hojaEntidades]) {
+      alert("El archivo debe contener las hojas '" + hojaPersonal + "' y '" + hojaEntidades + "'.");
+      hideLoading(); return;
+    }
+
+    showLoading("Convirtiendo hojas a tablas…");
+    const dfPersonal = XLSX.utils.sheet_to_json(wb.Sheets[hojaPersonal], { defval: null });
+    const dfEntidades = XLSX.utils.sheet_to_json(wb.Sheets[hojaEntidades], { defval: null });
+
+    // Construir diccionario de entidades (BK_CHIP -> {DS_ENTIDAD, DS_DEPARTAMENTO, DS_CIUDAD, DS_AMBITO_NOMBRE_CGR_CHIP})
+    showLoading("Uniendo hojas (CODENTIDAD = BK_CHIP)…");
+    const mapaEnt = new Map();
+    for (const e of dfEntidades) {
+      const k = (e["BK_CHIP"] ?? "").toString().trim();
+      if (!k) continue;
+      mapaEnt.set(k, {
+        DS_ENTIDAD: e["DS_ENTIDAD"] ?? null,
+        DS_DEPARTAMENTO: e["DS_DEPARTAMENTO"] ?? null,
+        DS_CIUDAD: e["DS_CIUDAD"] ?? null,
+        DS_AMBITO_NOMBRE_CGR_CHIP: e["DS_AMBITO_NOMBRE_CGR_CHIP"] ?? null
+      });
+    }
+
+    // Realizar el left-join
+    let sinEntidad = 0;
+    dfCompleto = new Array(dfPersonal.length);
+    for (let i = 0; i < dfPersonal.length; i++) {
+      const row = dfPersonal[i];
+      const k = (row["CODENTIDAD"] ?? "").toString().trim();
+      const ent = mapaEnt.get(k);
+      if (ent) {
+        row["DS_ENTIDAD"] = ent.DS_ENTIDAD;
+        row["DS_DEPARTAMENTO"] = ent.DS_DEPARTAMENTO;
+        row["DS_CIUDAD"] = ent.DS_CIUDAD;
+        row["DS_AMBITO_NOMBRE_CGR_CHIP"] = ent.DS_AMBITO_NOMBRE_CGR_CHIP;
+      } else {
+        row["DS_ENTIDAD"] = null;
+        row["DS_DEPARTAMENTO"] = null;
+        row["DS_CIUDAD"] = null;
+        row["DS_AMBITO_NOMBRE_CGR_CHIP"] = null;
+        sinEntidad++;
+      }
+      dfCompleto[i] = row;
+    }
+
+    // Calcular columnas y su tipo (igual a Paso 3 del notebook)
+    showLoading("Analizando columnas…");
+    const colsSet = new Set();
+    for (const r of dfCompleto) for (const k of Object.keys(r)) colsSet.add(k);
+    columnas = Array.from(colsSet);
+    infoColumnas = {};
+    for (const c of columnas) {
+      let numCount = 0, noNullCount = 0;
+      const uniq = new Set();
+      for (const r of dfCompleto) {
+        const v = r[c];
+        if (v === null || v === undefined || v === "") continue;
+        noNullCount++;
+        if (typeof v === "number" && !isNaN(v)) numCount++;
+        else if (!isNaN(parseFloat(v)) && isFinite(v)) numCount++;
+        uniq.add(v);
+      }
+      const tipo = (noNullCount > 0 && (numCount / noNullCount) > 0.8) ? "num" : "cat";
+      infoColumnas[c] = { tipo, unicos: uniq.size };
+    }
+
+    // Pintar estadísticas (Paso 2 final)
+    $("stats").style.display = "flex";
+    $("stFilas").textContent = dfCompleto.length.toLocaleString("es-CO");
+    $("stCols").textContent = columnas.length;
+    $("stSinEnt").textContent = sinEntidad.toLocaleString("es-CO");
+
+    pintarColumnas();
+    pintarSelectores();
+    $("cardColumnas").style.display = "block";
+    $("cardConsulta").style.display = "block";
+    hideLoading();
+  } catch (err) {
+    console.error(err);
+    alert("Error al procesar el archivo: " + err.message);
+    hideLoading();
+  }
+});
+
+// -------------------------------------------------------------------------
+// PASO 3: Mostrar tabla con las columnas disponibles
+// -------------------------------------------------------------------------
+function pintarColumnas(){
+  const tbody = $("tblColumnas").querySelector("tbody");
+  tbody.innerHTML = "";
+  columnas.forEach((c, i) => {
+    const info = infoColumnas[c];
+    const tipoTxt = info.tipo === "num" ? "numérica (montos/cantidades)" : "texto/categoría";
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${i}</td><td>${c}</td><td>${tipoTxt}</td><td>${info.unicos.toLocaleString("es-CO")}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// Llenar selectores de group_cols y métrica
+function pintarSelectores(){
+  const selGroup = $("groupCols");
+  const selMet = $("metrica");
+  selGroup.innerHTML = "";
+  selMet.innerHTML = "";
+
+  // Métrica: "contar" + columnas numéricas
+  const optC = document.createElement("option");
+  optC.value = "contar"; optC.textContent = "contar (número de registros)";
+  selMet.appendChild(optC);
+
+  columnas.forEach(c => {
+    const o1 = document.createElement("option");
+    o1.value = c; o1.textContent = c;
+    selGroup.appendChild(o1);
+
+    if (infoColumnas[c].tipo === "num") {
+      const o2 = document.createElement("option");
+      o2.value = c; o2.textContent = "sumar: " + c;
+      selMet.appendChild(o2);
+    }
+  });
+}
+
+// -------------------------------------------------------------------------
+// PASO 4: "Máquina de consultas" — ver_combinaciones y consulta
+// -------------------------------------------------------------------------
+function obtenerGroupCols(){
+  const sel = $("groupCols");
+  const arr = Array.from(sel.selectedOptions).map(o => o.value);
+  if (arr.length < 1 || arr.length > 5) {
+    alert("Debes seleccionar entre 1 y 5 columnas para agrupar.");
+    return null;
+  }
+  return arr;
+}
+
+function valorClave(v){
+  if (v === null || v === undefined || v === "") return "(vacío)";
+  return v.toString();
+}
+
+$("btnCombos").addEventListener("click", () => {
+  const cols = obtenerGroupCols(); if (!cols) return;
+  const set = new Set();
+  for (const r of dfCompleto) {
+    set.add(cols.map(c => valorClave(r[c])).join("¦"));
+  }
+  $("combosMsg").innerHTML =
+    `La consulta <b>${cols.join(" + ")}</b> generaría aproximadamente <b>${set.size.toLocaleString("es-CO")}</b> combinaciones distintas.`;
+});
+
+$("btnConsulta").addEventListener("click", () => {
+  const cols = obtenerGroupCols(); if (!cols) return;
+  const metrica = $("metrica").value;
+  const topN = Math.max(1, parseInt($("topN").value || "20", 10));
+  const maxCombinaciones = 5000;
+
+  showLoading("Ejecutando consulta…");
+  setTimeout(() => {
+    try {
+      // Agrupación
+      const grupos = new Map(); // clave -> {cols..., valor}
+      for (const r of dfCompleto) {
+        const claveArr = cols.map(c => valorClave(r[c]));
+        const clave = claveArr.join("¦");
+        let g = grupos.get(clave);
+        if (!g) {
+          g = { _key: clave, _cols: claveArr, valor: 0 };
+          grupos.set(clave, g);
+        }
+        if (metrica === "contar") {
+          g.valor += 1;
+        } else {
+          const v = r[metrica];
+          const n = (typeof v === "number") ? v : parseFloat(v);
+          if (!isNaN(n)) g.valor += n;
+        }
+      }
+      const colValor = (metrica === "contar") ? "Cantidad" : metrica;
+
+      // Construir array de resultado y ordenar desc
+      let resultado = Array.from(grupos.values()).map(g => {
+        const obj = {};
+        cols.forEach((c, i) => obj[c] = g._cols[i]);
+        obj[colValor] = g.valor;
+        return obj;
+      });
+      resultado.sort((a, b) => b[colValor] - a[colValor]);
+
+      ultimoResultado = resultado;
+      ultimoNombre = "consulta_" + cols.join("_").replace(/[^A-Za-z0-9_]/g, "_").slice(0, 50);
+
+      // Pintar primeras 30 filas
+      pintarTablaResultado(resultado.slice(0, 30), [...cols, colValor]);
+
+      // Gráfico
+      if (resultado.length > maxCombinaciones) {
+        $("chartBox").style.display = "none";
+        $("combosMsg").innerHTML =
+          `Hay <b>${resultado.length.toLocaleString("es-CO")}</b> combinaciones, demasiadas para graficar. ` +
+          `Se omite el gráfico, pero la tabla completa se puede descargar en Excel.`;
+      } else {
+        $("combosMsg").innerHTML =
+          `Total de combinaciones: <b>${resultado.length.toLocaleString("es-CO")}</b> · ` +
+          `Métrica: <b>${metrica}</b>`;
+        dibujarGrafico(resultado.slice(0, topN), cols, colValor);
+      }
+
+      $("btnDescargar").disabled = false;
+      hideLoading();
+    } catch (err) {
+      console.error(err);
+      alert("Error en la consulta: " + err.message);
+      hideLoading();
+    }
+  }, 30);
+});
+
+// Pintar tabla de resultado
+function pintarTablaResultado(filas, cabeceras){
+  const thead = $("tblResultado").querySelector("thead");
+  const tbody = $("tblResultado").querySelector("tbody");
+  thead.innerHTML = "<tr>" + cabeceras.map(h => `<th>${h}</th>`).join("") + "</tr>";
+  tbody.innerHTML = filas.map(r =>
+    "<tr>" + cabeceras.map(h => {
+      const v = r[h];
+      const txt = (typeof v === "number") ? v.toLocaleString("es-CO") : (v ?? "");
+      return `<td>${txt}</td>`;
+    }).join("") + "</tr>"
+  ).join("");
+}
+
+// Envolver texto a ~40 chars (similar a textwrap.wrap del notebook)
+function wrap40(txt){
+  const s = (txt ?? "").toString();
+  const out = [];
+  for (let i = 0; i < s.length; i += 40) out.push(s.slice(i, i + 40));
+  return out.join("\n");
+}
+
+// -------------------------------------------------------------------------
+// Gráfico con Chart.js (horizontal si top_n > 8, vertical en caso contrario)
+// -------------------------------------------------------------------------
+function dibujarGrafico(filas, cols, colValor){
+  $("chartBox").style.display = "block";
+  const ctx = $("chartCanvas").getContext("2d");
+  if (chartActual) chartActual.destroy();
+
+  const etiquetas = filas.map(f => wrap40(cols.map(c => f[c]).join(" | ")));
+  const valores = filas.map(f => f[colValor]);
+  const horizontal = filas.length > 8;
+
+  chartActual = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: etiquetas,
+      datasets: [{
+        label: colValor,
+        data: valores,
+        backgroundColor: "#0b2545",
+        borderColor: "#c9a227",
+        borderWidth: 1
+      }]
+    },
+    options: {
+      indexAxis: horizontal ? "y" : "x",
+      responsive: true,
+      plugins: {
+        title: { display: true, text: `${colValor} por ${cols.join(" + ")}`, color: "#0b2545", font:{size:14, weight:"bold"} },
+        legend: { display: false }
+      },
+      scales: {
+        x: { ticks: { color:"#333" } },
+        y: { ticks: { color:"#333" } }
+      }
+    }
+  });
+  // Ajustar altura para horizontales con muchas barras
+  $("chartCanvas").parentElement.style.height = horizontal ? Math.max(220, filas.length * 26) + "px" : "360px";
+  $("chartCanvas").style.height = "100%";
+}
+
+// -------------------------------------------------------------------------
+// PASO 6: Descargar el resultado completo como Excel
+// -------------------------------------------------------------------------
+$("btnDescargar").addEventListener("click", () => {
+  if (!ultimoResultado || ultimoResultado.length === 0) return;
+  const ws = XLSX.utils.json_to_sheet(ultimoResultado);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Consulta");
+  XLSX.writeFile(wb, ultimoNombre + ".xlsx");
+});
+</script>
+</body>
+</html>
