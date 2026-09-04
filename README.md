@@ -8,13 +8,13 @@ Aplicación estática (HTML + ES Modules). Sin WordPress, sin IA.
 index.html
   -> <script type="module" src="./js/main.js">
        js/main.js            (ENTRADA ÚNICA: abre IndexedDB, registra módulos, arranca router)
-         -> js/modules/index.js   (registra cada módulo en el router)
+         -> js/modules/index.js   (importa y registra cada módulo en el router)
          -> js/router.js          (menú lateral + navigate())
               -> js/modules/entities.js  (módulo funcional)
                    -> js/data/secop-contracts.js -> secop-api.js -> config.js/soql.js
 ```
 
-`main.js` es el "main" que faltaba: es lo único que carga el HTML.
+`main.js` es el "main" que carga el HTML, inicializa el almacenamiento y delega el registro de módulos a `js/modules/index.js`.
 
 Para agregar un módulo nuevo se edita **SOLO** `js/modules/index.js`.
 
@@ -43,8 +43,10 @@ js/
   main.js            <- entrada
   router.js          <- registro + navegación
   modules/
-    index.js         <- aquí se registran todos los módulos
-    entities.js      <- módulo funcional
+    index.js         <- aquí se conectan todos los módulos al router
+    entities.js      <- buscador de entidades
+    contracts.js     <- contratos de la entidad
+  workspace/         <- expediente y sus pestañas
   core/   (dom, state, text, format, toast, catalogs, identity)
   data/   (config, soql, secop-api, secop-contracts, secop-documents)
   models/ (entities.js)
