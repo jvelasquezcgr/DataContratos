@@ -2,6 +2,24 @@
 
 Aplicación estática (HTML + ES Modules). Sin WordPress, sin IA.
 
+## Deploy en GitHub Pages
+
+Esta aplicación está diseñada para funcionar directamente en **GitHub Pages**.
+
+### Pasos para publicar:
+
+1. **Sube tu código a GitHub** (rama `main` o `master`)
+
+2. **Activa GitHub Pages**:
+   - Ve a `Settings` > `Pages` en tu repositorio
+   - En "Source", selecciona `GitHub Actions`
+   - El workflow `.github/workflows/deploy.yml` se ejecutará automáticamente
+
+3. **Tu app estará disponible en**:
+   ```
+   https://tu-usuario.github.io/tu-repositorio/
+   ```
+
 ## Cómo se conecta todo (cadena de arranque)
 
 ```
@@ -50,6 +68,9 @@ js/
   models/ (entities.js)
   storage/(db.js, repositories.js)
   dev/    (smoke-test.js)
+.github/
+  workflows/
+    deploy.yml       <- CI/CD para GitHub Pages
 ```
 
 ## Estado

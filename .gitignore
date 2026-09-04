@@ -1,35 +1,7 @@
 ```
-# Dependencies
-node_modules/
-
-# Build artifacts
-dist/
-build/
-*.min.js
-*.min.css
-*.bundle.js
-
 # Environment
-.env
 .env.local
-*.env.*
 
 # Editors
 .vscode/
-.idea/
-*.swp
-*.swo
-
-# Logs
-*.log
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# Temporary files
-*.tmp
-Thumbs.db
-.DS_Store
 ```
